@@ -83,6 +83,7 @@
       this._stopRequested = false;
       this._loaded = false;
       this._skippedElements = new WeakSet();
+      this._olderThanRangePasses = 0;
     }
 
     async init() {
@@ -309,6 +310,7 @@
 
       this._stopRequested = false;
       this._skippedElements = new WeakSet();
+      this._olderThanRangePasses = 0;
       this.state.status = 'running';
       this.state.sessionDeleted = 0;
       this.state.sessionSkipped = 0;
@@ -351,6 +353,10 @@
           if (this._stopRequested) break;
 
           if (selectedCount === 0) {
+            if (this._olderThanRangePasses >= 2 && this.settings.dateFrom && this.state.pageContext.view === 'library') {
+              this.log('logEarlyStopOlder', { date: this.settings.dateFrom }, 'success');
+              break;
+            }
             emptyAttempts++;
             if (emptyAttempts >= MAX_EMPTY_ATTEMPTS) {
               break;
@@ -437,9 +443,15 @@
       this.log('logSelecting');
 
       const filtered = this.hasActiveFilters();
-      // When any filter is active, always inspect photo-by-photo so non-matching items are never deleted
-      const effectiveStrategy = filtered ? 'photo' : this.settings.strategy;
-      const allowDayBoxes = effectiveStrategy === 'smart' && targetCount >= 35;
+      const dateOnlyFilter =
+        (Boolean(this.settings.dateFrom) || Boolean(this.settings.dateTo)) &&
+        this.settings.mediaFilter === 'all' &&
+        !this.settings.skipFavorites;
+      // Allow smart day-header acceleration if unfiltered OR if ONLY date range is filtered
+      const effectiveStrategy = filtered && !dateOnlyFilter ? 'photo' : this.settings.strategy;
+      const allowDayBoxes =
+        (effectiveStrategy === 'smart' || (dateOnlyFilter && effectiveStrategy !== 'photo')) &&
+        targetCount >= 35;
 
       let scrollPasses = 0;
       const maxScrollPasses = this.settings.autoScroll ? (filtered ? 6 : 3) : 0;
@@ -469,7 +481,7 @@
         let clickedInPass = 0;
 
         // Mode A: Turbo Shift+Click Range Selection (no filters active, >= 3 photo boxes visible)
-        if (effectiveStrategy === 'turbo' && photoBoxes.length >= 3 && currentCount === 0) {
+        if (!filtered && effectiveStrategy === 'turbo' && photoBoxes.length >= 3 && currentCount === 0) {
           const sliceLen = Math.min(photoBoxes.length, targetCount);
           const firstBox = photoBoxes[0];
           const lastBox = photoBoxes[sliceLen - 1];
@@ -492,15 +504,22 @@
             }
             break;
           }
-          // If Shift+Click didn't expand on this Google Photos view, fall through seamlessly to normal selection
         }
 
-        // Mode B: Smart Day-Header Selection
+        // Mode B: Smart Day-Header Selection (supports date-range matching!)
         if (allowDayBoxes && dayBoxes.length > 0) {
           for (const box of dayBoxes) {
             if (this._stopRequested) break;
             await this._waitIfPaused();
             if (!box.isConnected || box.getAttribute('aria-checked') === 'true') continue;
+
+            if (dateOnlyFilter) {
+              const dayDate = root.selectors.getDayHeaderDate(box);
+              if (!dayDate) continue;
+              if (this.settings.dateFrom && dayDate < this.settings.dateFrom) continue;
+              if (this.settings.dateTo && dayDate > this.settings.dateTo) continue;
+              this.log('logDayDateMatch', { date: dayDate });
+            }
 
             root.selectors.safeClick(box);
             clickedInPass++;
@@ -514,8 +533,11 @@
           }
         }
 
-        // Mode C: Individual Photo Checkboxes (with optional Smart Filters)
+        // Mode C: Individual Photo Checkboxes (with optional Smart Filters + Library early-stop tracking)
         const fresh = root.selectors.findUncheckedCheckboxes();
+        let datedInPass = 0;
+        let olderInPass = 0;
+
         for (const box of fresh.photoBoxes) {
           if (this._stopRequested) break;
           await this._waitIfPaused();
@@ -523,6 +545,12 @@
 
           if (filtered) {
             const meta = root.selectors.inspectCheckboxItem(box);
+            if (meta.date) {
+              datedInPass++;
+              if (this.settings.dateFrom && meta.date < this.settings.dateFrom) {
+                olderInPass++;
+              }
+            }
             if (!root.selectors.matchesFilters(meta, this.settings)) {
               if (!this._skippedElements.has(box)) {
                 this._skippedElements.add(box);
@@ -551,6 +579,16 @@
               return currentCount;
             }
           }
+        }
+
+        // Track if entire screen is strictly older than dateFrom on reverse-chronological Library view
+        if (this.settings.dateFrom && datedInPass > 0 && olderInPass === datedInPass && clickedInPass === 0) {
+          this._olderThanRangePasses++;
+          if (this.state.pageContext.view === 'library' && this._olderThanRangePasses >= 2) {
+            break;
+          }
+        } else if (clickedInPass > 0) {
+          this._olderThanRangePasses = 0;
         }
 
         currentCount = root.selectors.getSelectedCount();

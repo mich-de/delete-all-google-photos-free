@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Delete All Google Photos — Free & Unlimited",
   "short_name": "Delete All Photos",
-  "version": "2.0.0",
-  "description": "100% free & unlimited Google Photos bulk delete & storage cleaner: Library, Archive, Large Files, Blurry, Screenshots, Videos, Date & Favorite filters.",
+  "version": "2.1.0",
+  "description": "100% free & unlimited Google Photos bulk delete & storage cleaner: Delete by Year/Month, Library, Archive, Large Files, Blurry, Screenshots, Videos & Favorite filters.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

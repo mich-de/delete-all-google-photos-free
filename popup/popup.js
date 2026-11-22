@@ -49,6 +49,39 @@
   let panelHidden = false;
   let pendingConfirm = null;
   let popupTab = 'delete'; // 'delete' | 'filters' | 'cleanup' | 'options'
+  let selectedYear = new Date().getFullYear() - 1;
+  let selectedMonth = 0;
+
+  const ENGLISH_MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const MONTH_NAMES = {
+    it: ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'],
+    en: ENGLISH_MONTHS,
+    zh: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+  };
+
+  function getYearDateRange(year, month = 0) {
+    const y = Number(year);
+    const m = Number(month) || 0;
+    const pad = (n) => (n < 10 ? `0${n}` : String(n));
+    if (m >= 1 && m <= 12) {
+      const lastDay = new Date(y, m, 0).getDate();
+      return { dateFrom: `${y}-${pad(m)}-01`, dateTo: `${y}-${pad(m)}-${pad(lastDay)}` };
+    }
+    return { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` };
+  }
+
+  function buildYearUrl(year, month = 0, acc = 0) {
+    const prefix = acc > 0 ? `https://photos.google.com/u/${acc}` : 'https://photos.google.com';
+    const m = Number(month) || 0;
+    if (m >= 1 && m <= 12) {
+      return `${prefix}/search/${encodeURIComponent(`${ENGLISH_MONTHS[m - 1]} ${year}`)}`;
+    }
+    return `${prefix}/search/${year}`;
+  }
 
   let state = {
     status: 'idle',
@@ -149,7 +182,10 @@
     render();
   }
 
-  function getViewLabel(view) {
+  function getViewLabel(pageContext) {
+    if (pageContext?.view === 'yearSearch' && pageContext.searchYear) {
+      return i18n.t(state.settings.lang || 'en', 'viewYearSearch', { year: pageContext.searchYear });
+    }
     const map = {
       library: 'viewLibrary',
       archive: 'viewArchive',
@@ -167,7 +203,7 @@
       storage: 'viewStorage',
       other: 'viewOther'
     };
-    return t(map[view] || 'viewOther');
+    return t(map[pageContext?.view] || 'viewOther');
   }
 
   function getStatusLabel(status) {
@@ -344,7 +380,7 @@
         <div class="card row-between">
           <div style="font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
             <span class="status-dot ${escapeHtml(state.status)}"></span>
-            ${escapeHtml(getViewLabel(state.pageContext.view))} (u/${acc})
+            ${escapeHtml(getViewLabel(state.pageContext))} (u/${acc})
           </div>
           <span class="chip ${escapeHtml(state.status)}">${escapeHtml(getStatusLabel(state.status))}</span>
         </div>
@@ -381,7 +417,38 @@
         <div class="muted" style="text-align:center;">${escapeHtml(t('privacyNote'))}</div>
       `;
     } else if (popupTab === 'filters') {
+      const nowYear = new Date().getFullYear();
+      const years = [];
+      for (let y = nowYear; y >= 2005; y--) years.push(y);
+      const quickYears = [nowYear, nowYear - 1, nowYear - 2, nowYear - 3, nowYear - 4, nowYear - 5];
+      const months = MONTH_NAMES[s.lang] || MONTH_NAMES.en;
+
       bodyHtml = `
+        <div class="card">
+          <div class="section-title">${escapeHtml(t('yearSectionTitle'))}</div>
+          <div class="year-chips">
+            ${quickYears
+              .map((y) => `<button class="year-chip ${selectedYear === y ? 'active' : ''}" data-action="pick-year" data-year="${y}" ${isActive ? 'disabled' : ''}>${y}</button>`)
+              .join('')}
+          </div>
+          <div class="year-row">
+            <select data-year-picker="1" ${isActive ? 'disabled' : ''}>
+              ${years.map((y) => `<option value="${y}" ${selectedYear === y ? 'selected' : ''}>${y}</option>`).join('')}
+            </select>
+            <select data-month-picker="1" ${isActive ? 'disabled' : ''}>
+              <option value="0" ${selectedMonth === 0 ? 'selected' : ''}>${escapeHtml(t('monthAll'))}</option>
+              ${months.map((m, idx) => `<option value="${idx + 1}" ${selectedMonth === idx + 1 ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
+            </select>
+          </div>
+          <button class="btn primary sm" style="width:100%; margin-bottom:7px;" data-action="open-year-search" ${isActive ? 'disabled' : ''}>
+            ${escapeHtml(t('btnOpenYear'))} (${selectedYear}${selectedMonth > 0 ? `/${String(selectedMonth).padStart(2, '0')}` : ''})
+          </button>
+          <div class="actions">
+            <button class="btn sm" data-action="apply-year-here" ${isActive ? 'disabled' : ''}>${escapeHtml(t('btnApplyYearHere'))}</button>
+            <button class="btn sm" data-action="apply-before-year" ${isActive ? 'disabled' : ''}>≤ ${escapeHtml(t('btnBeforeYear'))} ${selectedYear}</button>
+          </div>
+        </div>
+
         <div class="card">
           <div class="field">
             <label>${escapeHtml(t('filterMediaType'))}</label>
@@ -562,11 +629,45 @@
         render();
         break;
       }
+      case 'pick-year':
+        selectedYear = Number(btn.getAttribute('data-year')) || selectedYear;
+        selectedMonth = 0;
+        render();
+        break;
+      case 'apply-year-here': {
+        const range = getYearDateRange(selectedYear, selectedMonth);
+        await updateSettings({ dateFrom: range.dateFrom, dateTo: range.dateTo });
+        popupTab = 'delete';
+        render();
+        break;
+      }
+      case 'apply-before-year': {
+        await updateSettings({ dateFrom: '', dateTo: `${selectedYear - 1}-12-31` });
+        popupTab = 'delete';
+        render();
+        break;
+      }
+      case 'open-year-search': {
+        const range = getYearDateRange(selectedYear, selectedMonth);
+        await updateSettings({ dateFrom: range.dateFrom, dateTo: range.dateTo });
+        await openUrl(buildYearUrl(selectedYear, selectedMonth, acc), isPhotosTab);
+        break;
+      }
     }
   });
 
   appEl.addEventListener('change', async (e) => {
     const el = e.target;
+    if (el.hasAttribute('data-year-picker')) {
+      selectedYear = Number(el.value) || selectedYear;
+      render();
+      return;
+    }
+    if (el.hasAttribute('data-month-picker')) {
+      selectedMonth = Number(el.value) || 0;
+      render();
+      return;
+    }
     const key = el.getAttribute('data-setting');
     if (!key) return;
     let val;

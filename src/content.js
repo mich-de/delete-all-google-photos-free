@@ -15,7 +15,15 @@
     hidden: false,
     activeTab: 'delete', // 'delete' | 'filters' | 'cleanup' | 'options'
     pendingConfirm: null, // null | 'start' | 'emptyTrash'
-    copiedLog: false
+    copiedLog: false,
+    selectedYear: new Date().getFullYear() - 1,
+    selectedMonth: 0
+  };
+
+  const MONTH_NAMES = {
+    it: ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'],
+    en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    zh: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
   };
 
   let hostEl = null;
@@ -36,7 +44,10 @@
       .replace(/"/g, '&quot;');
   }
 
-  function getViewLabel(lang, view) {
+  function getViewLabel(lang, pageContext) {
+    if (pageContext?.view === 'yearSearch' && pageContext.searchYear) {
+      return root.i18n.t(lang, 'viewYearSearch', { year: pageContext.searchYear });
+    }
     const map = {
       library: 'viewLibrary',
       archive: 'viewArchive',
@@ -54,7 +65,7 @@
       storage: 'viewStorage',
       other: 'viewOther'
     };
-    return root.i18n.t(lang, map[view] || 'viewOther');
+    return root.i18n.t(lang, map[pageContext?.view] || 'viewOther');
   }
 
   function getStatusLabel(lang, status) {
@@ -220,11 +231,52 @@
         window.location.href = root.selectors.buildPhotosUrl('library', accIdx);
         break;
       }
+      case 'pick-year': {
+        uiState.selectedYear = Number(btn.getAttribute('data-year')) || uiState.selectedYear;
+        uiState.selectedMonth = 0;
+        render(snap);
+        break;
+      }
+      case 'apply-year-here': {
+        const range = root.selectors.getYearDateRange(uiState.selectedYear, uiState.selectedMonth);
+        engine.updateSettings({ dateFrom: range.dateFrom, dateTo: range.dateTo }).then(() => {
+          uiState.activeTab = 'delete';
+          render(engine.getSnapshot());
+        });
+        break;
+      }
+      case 'apply-before-year': {
+        const prevYear = Number(uiState.selectedYear) - 1;
+        engine.updateSettings({ dateFrom: '', dateTo: `${prevYear}-12-31` }).then(() => {
+          uiState.activeTab = 'delete';
+          render(engine.getSnapshot());
+        });
+        break;
+      }
+      case 'open-year-search': {
+        const range = root.selectors.getYearDateRange(uiState.selectedYear, uiState.selectedMonth);
+        const acc = snap.pageContext.accountIndex || 0;
+        const targetUrl = root.selectors.buildYearSearchUrl(uiState.selectedYear, uiState.selectedMonth, acc);
+        engine.updateSettings({ dateFrom: range.dateFrom, dateTo: range.dateTo }).then(() => {
+          window.location.href = targetUrl;
+        });
+        break;
+      }
     }
   }
 
   function handleChange(e) {
     const el = e.target;
+    if (el.hasAttribute('data-year-picker')) {
+      uiState.selectedYear = Number(el.value) || uiState.selectedYear;
+      render(root.engine.getSnapshot());
+      return;
+    }
+    if (el.hasAttribute('data-month-picker')) {
+      uiState.selectedMonth = Number(el.value) || 0;
+      render(root.engine.getSnapshot());
+      return;
+    }
     const key = el.getAttribute('data-setting');
     if (!key) return;
     let val;
@@ -277,7 +329,7 @@
       return;
     }
 
-    const viewLabel = getViewLabel(lang, snap.pageContext.view);
+    const viewLabel = getViewLabel(lang, snap.pageContext);
     const acc = snap.pageContext.accountIndex || 0;
     const statusLabel = getStatusLabel(lang, snap.status);
     const langBadge = lang === 'zh' ? '中文' : lang.toUpperCase();
@@ -373,7 +425,38 @@
         <div class="dagp-hint">${escapeHtml(t('keepTabActive'))}</div>
       `;
     } else if (uiState.activeTab === 'filters') {
+      const nowYear = new Date().getFullYear();
+      const years = [];
+      for (let y = nowYear; y >= 2005; y--) years.push(y);
+      const quickYears = [nowYear, nowYear - 1, nowYear - 2, nowYear - 3, nowYear - 4, nowYear - 5];
+      const months = MONTH_NAMES[lang] || MONTH_NAMES.en;
+
       tabBody = `
+        <div class="dagp-year-card">
+          <div class="dagp-sub-title">${escapeHtml(t('yearSectionTitle'))}</div>
+          <div class="dagp-year-chips">
+            ${quickYears
+              .map((y) => `<button class="dagp-year-chip ${uiState.selectedYear === y ? 'active' : ''}" data-action="pick-year" data-year="${y}" ${isActive ? 'disabled' : ''}>${y}</button>`)
+              .join('')}
+          </div>
+          <div class="dagp-year-row">
+            <select data-year-picker="1" ${isActive ? 'disabled' : ''}>
+              ${years.map((y) => `<option value="${y}" ${uiState.selectedYear === y ? 'selected' : ''}>${y}</option>`).join('')}
+            </select>
+            <select data-month-picker="1" ${isActive ? 'disabled' : ''}>
+              <option value="0" ${uiState.selectedMonth === 0 ? 'selected' : ''}>${escapeHtml(t('monthAll'))}</option>
+              ${months.map((m, idx) => `<option value="${idx + 1}" ${uiState.selectedMonth === idx + 1 ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
+            </select>
+          </div>
+          <button class="dagp-btn primary sm" data-action="open-year-search" ${isActive ? 'disabled' : ''}>
+            ${escapeHtml(t('btnOpenYear'))} (${uiState.selectedYear}${uiState.selectedMonth > 0 ? `/${String(uiState.selectedMonth).padStart(2, '0')}` : ''})
+          </button>
+          <div class="dagp-actions">
+            <button class="dagp-btn secondary sm" data-action="apply-year-here" ${isActive ? 'disabled' : ''}>${escapeHtml(t('btnApplyYearHere'))}</button>
+            <button class="dagp-btn secondary sm" data-action="apply-before-year" ${isActive ? 'disabled' : ''}>≤ ${escapeHtml(t('btnBeforeYear'))} ${uiState.selectedYear}</button>
+          </div>
+        </div>
+
         <div class="dagp-card">
           <div class="dagp-field">
             <label>${escapeHtml(t('filterMediaType'))}</label>

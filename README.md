@@ -1,4 +1,4 @@
-# Delete All Google Photos — Free & Unlimited (v2.0)
+# Delete All Google Photos — Free & Unlimited (v2.1)
 
 Estensione browser **100% gratuita, open-source, locale e illimitata** (Manifest V3) per **Chrome, Edge, Brave, Opera, Vivaldi, Arc e Firefox**.
 
@@ -6,6 +6,9 @@ Unisce in un unico strumento il meglio di **Delete All Google Photos** e **Googl
 
 ## Funzionalità principali
 - **100% Free & Illimitata**: zero limiti giornalieri, zero pagamenti, zero tracciamento, permessi minimi (`storage`, `activeTab`, solo `https://photos.google.com/*`).
+- **📅 Eliminazione per Anno (o Mese) in 1 click**:
+  - Scegli un anno (`2005–2026`) o un singolo mese e clicca **Apri anno + filtro sicuro**: apre direttamente `/search/2019` su Google Foto (zero scrolling su anni più recenti) e imposta automaticamente il filtro data stretto `2019-01-01 → 2019-12-31` così **salta automaticamente eventuali falsi positivi** della ricerca Google!
+  - Supporta anche **"Prima del XXXX"** (es. elimina tutto ciò che è precedente al 2022) e selezione rapida a intera giornata per le date compatibili + arresto anticipato automatico in Libreria.
 - **Pulizia Spazio Rapida (Storage Cleanup)** con accesso a 1 click:
   - **File Pesanti** (`/quotamanagement/large`)
   - **Tutti i Video** (`/videos`)
@@ -31,7 +34,7 @@ Unisce in un unico strumento il meglio di **Delete All Google Photos** e **Googl
 Scarica i pacchetti pronti dalla pagina [**Releases**](../../releases) (oppure genera i pacchetti localmente con `npm run build`).
 
 ### Chrome, Edge, Brave, Opera, Vivaldi, Arc (Chromium)
-1. Scarica **`delete-all-google-photos-v2.0.0-chromium.zip`** dalle [Releases](../../releases) ed estrai la cartella.
+1. Scarica **`delete-all-google-photos-v2.1.0-chromium.zip`** dalle [Releases](../../releases) ed estrai la cartella.
 2. Apri la pagina estensioni del tuo browser:
    - Chrome: `chrome://extensions`
    - Edge: `edge://extensions`
@@ -44,7 +47,7 @@ Scarica i pacchetti pronti dalla pagina [**Releases**](../../releases) (oppure g
 
 ### Firefox (Desktop & Developer Edition / Nightly)
 - **Installazione rapida (tutte le versioni di Firefox)**:
-  1. Scarica **`delete-all-google-photos-v2.0.0-firefox.xpi`** (o `.zip`) dalle [Releases](../../releases).
+  1. Scarica **`delete-all-google-photos-v2.1.0-firefox.xpi`** (o `.zip`) dalle [Releases](../../releases).
   2. Apri `about:debugging#/runtime/this-firefox`.
   3. Clicca **Carica componente aggiuntivo temporaneo…** (*Load Temporary Add-on…*) e seleziona il file `.xpi` (oppure il file `manifest.json` dentro `dist/firefox/`).
   4. Apri [photos.google.com](https://photos.google.com/) e, se Firefox chiede il permesso per `photos.google.com` in `about:addons`, clicca **Consenti**.
@@ -61,8 +64,8 @@ npm run build
 ```
 
 Genera in `dist/`:
-- `delete-all-google-photos-v2.0.0-chromium.zip` + `dist/chromium/` (Chrome, Edge, Brave, Opera, Vivaldi, Arc)
-- `delete-all-google-photos-v2.0.0-firefox.xpi` + `delete-all-google-photos-v2.0.0-firefox.zip` + `dist/firefox/` (Firefox MV3)
+- `delete-all-google-photos-v2.1.0-chromium.zip` + `dist/chromium/` (Chrome, Edge, Brave, Opera, Vivaldi, Arc)
+- `delete-all-google-photos-v2.1.0-firefox.xpi` + `delete-all-google-photos-v2.1.0-firefox.zip` + `dist/firefox/` (Firefox MV3)
 
 ## Sicurezza e Backup
 - Prima di eliminare grandi librerie, esegui un backup con [Google Takeout](https://takeout.google.com/).

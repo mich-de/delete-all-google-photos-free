@@ -89,6 +89,7 @@
     const cleanPath = path.replace(/^\/u\/\d+/, '') || '/';
 
     let view = 'other';
+    let searchYear = null;
     if (cleanPath === '/' || cleanPath === '/photos' || cleanPath.startsWith('/photo/')) {
       view = 'library';
     } else if (cleanPath.startsWith('/archive')) {
@@ -111,6 +112,15 @@
       view = 'videos';
     } else if (cleanPath.startsWith('/search/_tra_')) {
       view = 'recentlyAdded';
+    } else if (cleanPath.startsWith('/search/')) {
+      const q = decodeURIComponent(cleanPath.slice('/search/'.length));
+      const ym = q.match(/\b(20\d{2}|19\d{2})\b/);
+      if (ym) {
+        view = 'yearSearch';
+        searchYear = ym[1];
+      } else {
+        view = 'search';
+      }
     } else if (cleanPath.startsWith('/search')) {
       view = 'search';
     } else if (cleanPath.startsWith('/album') || cleanPath.startsWith('/share')) {
@@ -125,8 +135,49 @@
       cleanPath,
       accountIndex,
       view,
+      searchYear,
       isTrash: view === 'trash'
     };
+  }
+
+  const ENGLISH_MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  function buildYearSearchUrl(year, month = 0, accountIndex = 0) {
+    const y = Number(year);
+    const m = Number(month) || 0;
+    const prefix = accountIndex > 0 ? `https://photos.google.com/u/${accountIndex}` : 'https://photos.google.com';
+    if (m >= 1 && m <= 12) {
+      return `${prefix}/search/${encodeURIComponent(`${ENGLISH_MONTHS[m - 1]} ${y}`)}`;
+    }
+    return `${prefix}/search/${y}`;
+  }
+
+  function getYearDateRange(year, month = 0) {
+    const y = Number(year);
+    const m = Number(month) || 0;
+    const pad = (n) => (n < 10 ? `0${n}` : String(n));
+    if (m >= 1 && m <= 12) {
+      const lastDay = new Date(y, m, 0).getDate();
+      return {
+        dateFrom: `${y}-${pad(m)}-01`,
+        dateTo: `${y}-${pad(m)}-${pad(lastDay)}`
+      };
+    }
+    return {
+      dateFrom: `${y}-01-01`,
+      dateTo: `${y}-12-31`
+    };
+  }
+
+  function getDayHeaderDate(el) {
+    let d = root.i18n.parseDateFromLabel(getRawLabel(el));
+    if (!d && el && el.parentElement) {
+      d = root.i18n.parseDateFromLabel(el.parentElement.innerText || el.parentElement.textContent);
+    }
+    return d;
   }
 
   function buildPhotosUrl(dest, accountIndex = 0) {
@@ -557,6 +608,9 @@
     isInViewport,
     parsePageContext,
     buildPhotosUrl,
+    buildYearSearchUrl,
+    getYearDateRange,
+    getDayHeaderDate,
     findScrollContainer,
     isDayHeaderCheckbox,
     inspectCheckboxItem,

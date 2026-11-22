@@ -1,0 +1,10 @@
+{
+  "name": "delete-all-google-photos-free",
+  "version": "2.0.0",
+  "description": "100% free & unlimited Google Photos bulk delete & storage cleaner extension for Chrome, Chromium-based browsers, and Firefox.",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "license": "MIT"
+}
